@@ -376,6 +376,15 @@ function getPaddleYOffset(){
   return Math.max(36, Math.min(150, LOGICAL_H * 0.075));
 }
 
+// Distance from the top edge to the first brick row, converted from a fixed
+// real screen-pixel clearance so bricks always sit below the HUD's glass
+// bar (which has a fixed CSS height and a backdrop-filter blur) instead of
+// rendering underneath it and appearing blurred out.
+function getBrickTopOffset(){
+  const hudClearanceCssPx = 156;
+  return Math.max(BRICK_TOP_OFFSET, hudClearanceCssPx * canvasScale);
+}
+
 function refreshLogicalSize(){
   const vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
   const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
@@ -492,6 +501,11 @@ function setAppHeight(){
   document.documentElement.style.setProperty("--app-height", h + "px");
 }
 
+// Logical-units-per-CSS-pixel scale of the canvas, refreshed on every
+// resize. Used to keep on-canvas layout (like brick clearance below the
+// HUD) sized consistently in real screen pixels across devices.
+let canvasScale = 1;
+
 function resizeCanvas(){
   setAppHeight();
   const dpr = window.devicePixelRatio || 1;
@@ -507,6 +521,7 @@ function resizeCanvas(){
   canvas.width = Math.round(LOGICAL_W * dpr);
   canvas.height = Math.round(LOGICAL_H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  canvasScale = LOGICAL_H / cssH;
 }
 window.addEventListener("resize", resizeCanvas);
 if(window.visualViewport){
@@ -649,6 +664,7 @@ function generateLevel(levelNum){
   const rows = Math.min(cfg.rows + Math.floor((levelNum-1)/2), cfg.maxRows);
   const brickW = (LOGICAL_W - BRICK_SIDE_OFFSET*2 - BRICK_MARGIN*(BRICK_COLS-1)) / BRICK_COLS;
   const brickH = 22;
+  const topOffset = getBrickTopOffset();
   const list = [];
 
   // pattern selector cycles through a few layout shapes for variety
@@ -676,7 +692,7 @@ function generateLevel(levelNum){
       const hp = (levelNum > 3 && Math.random() < 0.08) ? 2 : 1;
       list.push({
         x: BRICK_SIDE_OFFSET + c*(brickW+BRICK_MARGIN),
-        y: BRICK_TOP_OFFSET + r*(brickH+BRICK_MARGIN),
+        y: topOffset + r*(brickH+BRICK_MARGIN),
         w: brickW, h: brickH,
         hue, hp, maxHp: hp,
         alive: true,
