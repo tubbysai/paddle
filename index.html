@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Neon Brick Bash</title>
+<style>
+  :root{
+    --neon-cyan:#3ff0ff;
+    --neon-pink:#ff3fd8;
+    --neon-purple:#a63fff;
+    --neon-amber:#ffcf3f;
+    --bg-0:#05030a;
+    --panel-bg:rgba(12,8,26,0.82);
+    --panel-border:rgba(160,120,255,0.35);
+    --text-dim:#a9a0c9;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;width:100%;height:100%;
+    background:var(--bg-0);
+    overflow:hidden;
+    font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Trebuchet MS',sans-serif;
+    color:#fff;
+    -webkit-user-select:none;user-select:none;
+    touch-action:none;
+  }
+  #stage{
+    position:fixed;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at center,#0d0620 0%,#040209 75%);
+  }
+  #gameCanvas{
+    display:block;
+    background:#060212;
+    box-shadow:0 0 60px rgba(140,60,255,0.35), 0 0 140px rgba(60,220,255,0.12);
+    border-radius:6px;
+    touch-action:none;
+  }
+  #canvasWrap{position:relative;}
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:absolute;top:0;left:0;right:0;
+    display:none;
+    justify-content:space-between;
+    align-items:flex-start;
+    padding:14px 18px;
+    pointer-events:none;
+    font-weight:600;
+    letter-spacing:0.5px;
+    z-index:5;
+  }
+  #hud.show{display:flex;}
+  .hud-group{display:flex;flex-direction:column;gap:4px;pointer-events:none;}
+  .hud-label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;}
+  .hud-value{font-size:20px;color:var(--neon-cyan);text-shadow:0 0 8px rgba(63,240,255,0.9),0 0 18px rgba(63,240,255,0.5);}
+  #livesRow{display:flex;gap:6px;margin-top:2px;}
+  .life-pip{
+    width:14px;height:14px;border-radius:50%;
+    background:var(--neon-pink);
+    box-shadow:0 0 8px var(--neon-pink),0 0 16px rgba(255,63,216,0.6);
+  }
+  .life-pip.lost{
+    background:transparent;
+    box-shadow:none;
+    border:1.5px solid rgba(255,63,216,0.25);
+  }
+  #diffBadge{
+    font-size:11px;padding:3px 10px;border-radius:20px;
+    border:1px solid var(--panel-border);
+    background:rgba(160,100,255,0.12);
+    color:var(--neon-purple);
+    text-transform:uppercase;letter-spacing:1.5px;
+    box-shadow:0 0 10px rgba(166,63,255,0.25);
+  }
+  #pauseBtn{
+    pointer-events:auto;
+    cursor:pointer;
+    width:38px;height:38px;
+    border-radius:50%;
+    border:1px solid var(--panel-border);
+    background:rgba(160,100,255,0.12);
+    color:#fff;
+    font-size:16px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 10px rgba(166,63,255,0.25);
+    transition:background 0.2s, transform 0.15s;
+  }
+  #pauseBtn:hover{background:rgba(160,100,255,0.3);transform:scale(1.08);}
+
+  /* ---------- Screens ---------- */
+  .screen{
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    z-index:20;
+    opacity:0;
+    transform:scale(0.94);
+    pointer-events:none;
+    transition:opacity 0.4s ease, transform 0.4s ease;
+  }
+  .screen.active{
+    opacity:1;
+    transform:scale(1);
+    pointer-events:auto;
+  }
+  .panel{
+    background:var(--panel-bg);
+    border:1px solid var(--panel-border);
+    border-radius:16px;
+    padding:34px 42px;
+    max-width:92%;
+    max-height:92%;
+    overflow-y:auto;
+    text-align:center;
+    backdrop-filter:blur(10px);
+    box-shadow:0 0 40px rgba(120,60,255,0.25), inset 0 0 40px rgba(120,60,255,0.05);
+  }
+  .title{
+    font-size:44px;
+    font-weight:800;
+    margin:0 0 4px;
+    letter-spacing:2px;
+    background:linear-gradient(90deg,var(--neon-cyan),var(--neon-pink),var(--neon-purple),var(--neon-amber));
+    background-size:300% 100%;
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    animation:hueflow 6s linear infinite;
+    text-shadow:0 0 40px rgba(160,100,255,0.35);
+  }
+  @keyframes hueflow{
+    0%{background-position:0% 50%;}
+    100%{background-position:300% 50%;}
+  }
+  .subtitle{
+    color:var(--text-dim);
+    font-size:13px;
+    letter-spacing:3px;
+    text-transform:uppercase;
+    margin-bottom:26px;
+  }
+  .section-label{
+    font-size:12px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:2px;
+    margin:18px 0 10px;
+  }
+  .diff-row{display:flex;gap:10px;justify-content:center;margin-bottom:22px;}
+  .diff-btn{
+    cursor:pointer;
+    padding:10px 20px;
+    border-radius:10px;
+    border:1px solid var(--panel-border);
+    background:rgba(255,255,255,0.03);
+    color:#e7e0ff;
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:1px;
+    transition:all 0.2s;
+  }
+  .diff-btn:hover{background:rgba(160,100,255,0.18);}
+  .diff-btn.selected{
+    background:linear-gradient(135deg,rgba(63,240,255,0.25),rgba(166,63,255,0.35));
+    border-color:var(--neon-cyan);
+    box-shadow:0 0 16px rgba(63,240,255,0.4);
+  }
+  .btn-primary{
+    cursor:pointer;
+    display:inline-block;
+    padding:14px 40px;
+    font-size:16px;
+    font-weight:700;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    border-radius:12px;
+    border:none;
+    color:#08040f;
+    background:linear-gradient(120deg,var(--neon-cyan),var(--neon-pink));
+    box-shadow:0 0 20px rgba(63,240,255,0.45), 0 0 40px rgba(255,63,216,0.25);
+    transition:transform 0.15s, box-shadow 0.2s;
+    margin:6px;
+  }
+  .btn-primary:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 0 30px rgba(63,240,255,0.65), 0 0 50px rgba(255,63,216,0.4);}
+  .btn-primary:active{transform:translateY(0) scale(0.98);}
+  .btn-secondary{
+    cursor:pointer;
+    display:inline-block;
+    padding:12px 32px;
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    border-radius:12px;
+    border:1px solid var(--panel-border);
+    color:#e7e0ff;
+    background:rgba(255,255,255,0.04);
+    transition:all 0.2s;
+    margin:6px;
+  }
+  .btn-secondary:hover{background:rgba(160,100,255,0.2);}
+
+  .stats-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px 24px;
+    text-align:left;
+    margin:14px 0;
+    font-size:13px;
+  }
+  .stats-grid div span{color:var(--neon-cyan);font-weight:700;}
+  .stat-diff-row{display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);padding:3px 0;border-bottom:1px dashed rgba(255,255,255,0.07);}
+  .stat-diff-row b{color:var(--neon-amber);}
+
+  #statsPanel{display:none;}
+  #statsPanel.show{display:block;}
+
+  .final-score{
+    font-size:52px;
+    font-weight:800;
+    color:var(--neon-cyan);
+    text-shadow:0 0 20px rgba(63,240,255,0.8);
+    margin:4px 0 2px;
+  }
+  .best-score{color:var(--text-dim);font-size:13px;margin-bottom:14px;}
+  .new-best{color:var(--neon-amber);font-weight:700;text-shadow:0 0 10px rgba(255,207,63,0.7);}
+
+  #hint{
+    position:absolute;bottom:10px;left:0;right:0;
+    text-align:center;
+    font-size:11px;
+    color:rgba(200,190,230,0.35);
+    letter-spacing:1px;
+    z-index:4;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="canvasWrap">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- ===================== HUD ===================== -->
+    <div id="hud">
+      <div class="hud-group">
+        <div class="hud-label">Score</div>
+        <div class="hud-value" id="hudScore">0</div>
+      </div>
+      <div class="hud-group" style="align-items:center;">
+        <div class="hud-label">Level</div>
+        <div class="hud-value" id="hudLevel" style="font-size:16px;">1</div>
+        <div id="diffBadge">Medium</div>
+      </div>
+      <div class="hud-group" style="align-items:flex-end;">
+        <div class="hud-label">Lives</div>
+        <div id="livesRow"></div>
+        <div style="margin-top:10px;"><button id="pauseBtn" title="Pause (Space)">&#10074;&#10074;</button></div>
+      </div>
+    </div>
+
+    <!-- ===================== MAIN MENU ===================== -->
+    <div class="screen active" id="screenMenu">
+      <div class="panel" style="width:460px;">
+        <div class="title">NEON BRICK BASH</div>
+        <div class="subtitle">arcade breakout &middot; reloaded</div>
+
+        <div class="section-label">Difficulty</div>
+        <div class="diff-row" id="diffRow">
+          <div class="diff-btn" data-diff="easy">Easy</div>
+          <div class="diff-btn selected" data-diff="medium">Medium</div>
+          <div class="diff-btn" data-diff="hard">Hard</div>
+        </div>
+
+        <div>
+          <button class="btn-primary" id="btnStart">Start Game</button>
+        </div>
+        <div>
+          <button class="btn-secondary" id="btnShowStats">High Scores</button>
+        </div>
+
+        <div id="statsPanel">
+          <div class="section-label">Statistics</div>
+          <div class="stats-grid">
+            <div>High Score <span id="statHigh">0</span></div>
+            <div>Games Played <span id="statGames">0</span></div>
+            <div>Bricks Broken <span id="statBricks">0</span></div>
+            <div>Best Combo <span id="statCombo">0</span></div>
+          </div>
+          <div class="section-label" style="margin-top:16px;">Best Score by Difficulty</div>
+          <div class="stat-diff-row"><span>Easy</span><b id="statEasy">0</b></div>
+          <div class="stat-diff-row"><span>Medium</span><b id="statMedium">0</b></div>
+          <div class="stat-diff-row"><span>Hard</span><b id="statHard">0</b></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== PAUSE MENU ===================== -->
+    <div class="screen" id="screenPause">
+      <div class="panel" style="width:360px;">
+        <div class="title" style="font-size:30px;">PAUSED</div>
+        <div style="margin-top:10px;">
+          <div><button class="btn-primary" id="btnResume">Resume</button></div>
+          <div><button class="btn-secondary" id="btnRestart">Restart</button></div>
+          <div><button class="btn-secondary" id="btnPauseMenu">Back to Main Menu</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== GAME OVER ===================== -->
+    <div class="screen" id="screenOver">
+      <div class="panel" style="width:400px;">
+        <div class="title" style="font-size:30px;">GAME OVER</div>
+        <div class="final-score" id="overScore">0</div>
+        <div class="best-score" id="overBest">Best: 0</div>
+        <div>
+          <button class="btn-primary" id="btnPlayAgain">Play Again</button>
+        </div>
+        <div>
+          <button class="btn-secondary" id="btnOverMenu">Back to Main Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="hint">mouse / arrow keys / touch &nbsp;&middot;&nbsp; space or esc to pause</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   SECTION: CONFIG & CONSTANTS
+   ===================================================================== */
+const LOGICAL_W = 900;
+const LOGICAL_H = 650;
+const BRICK_COLS = 10;
+const BRICK_MARGIN = 6;
+const BRICK_TOP_OFFSET = 70;
+const BRICK_SIDE_OFFSET = 20;
+const PADDLE_Y_OFFSET = 36; // distance from bottom
+const PADDLE_HEIGHT = 16;
+const BALL_RADIUS = 8;
+const MAX_BOUNCE_ANGLE = Math.PI * 0.41; // ~74 degrees from vertical
+
+const DIFFICULTY = {
+  easy:   { label:"Easy",   ballSpeed:5.0, paddleWidth:130, rows:4, maxRows:6, speedGrowth:0.055, maxSpeed:11, paddleMoveSpeed:620 },
+  medium: { label:"Medium", ballSpeed:6.3, paddleWidth:100, rows:5, maxRows:7, speedGrowth:0.09,  maxSpeed:13.5, paddleMoveSpeed:680 },
+  hard:   { label:"Hard",   ballSpeed:7.6, paddleWidth:78,  rows:6, maxRows:8, speedGrowth:0.14,  maxSpeed:16.5, paddleMoveSpeed:740 }
+};
+
+// background hue "stops" the palette drifts between: purple -> cyan -> magenta -> amber
+const PALETTE_STOPS = [268, 190, 312, 40];
+
+const STORAGE_KEY = "neonBrickBash_stats_v1";
+
+/* =====================================================================
+   SECTION: DOM REFERENCES
+   ===================================================================== */
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const canvasWrap = document.getElementById("canvasWrap");
+
+const hud = document.getElementById("hud");
+const hudScore = document.getElementById("hudScore");
+const hudLevel = document.getElementById("hudLevel");
+const diffBadge = document.getElementById("diffBadge");
+const livesRow = document.getElementById("livesRow");
+const pauseBtn = document.getElementById("pauseBtn");
+
+const screenMenu = document.getElementById("screenMenu");
+const screenPause = document.getElementById("screenPause");
+const screenOver = document.getElementById("screenOver");
+const statsPanel = document.getElementById("statsPanel");
+
+/* =====================================================================
+   SECTION: GAME STATE
+   ===================================================================== */
+const Game = {
+  screen: "menu", // menu | playing | paused | gameover
+  difficulty: "medium",
+  score: 0,
+  lives: 3,
+  level: 1,
+  combo: 0,
+  comboRunTimer: 0,
+  sessionBricksBroken: 0,
+  bestComboThisRun: 0,
+  lastTime: 0,
+};
+
+let paddle, ball, bricks = [], particles = [], popups = [], stars = [], trail = [];
+let shakeMag = 0, shakeTime = 0;
+let bgHue = PALETTE_STOPS[0], bgTargetHue = PALETTE_STOPS[0];
+let bgPulse = 0;
+let comboFlash = null; // {text, alpha, y}
+
+const keys = { left:false, right:false };
+let pointerTargetX = null;
+
+/* =====================================================================
+   SECTION: PERSISTENCE (localStorage)
+   ===================================================================== */
+function loadStats(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return Object.assign(defaultStats(), JSON.parse(raw));
+  }catch(e){ /* corrupted storage, fall back to defaults */ }
+  return defaultStats();
+}
+function defaultStats(){
+  return {
+    highScore:0,
+    gamesPlayed:0,
+    bricksBroken:0,
+    bestCombo:0,
+    bestByDifficulty:{ easy:0, medium:0, hard:0 }
+  };
+}
+function saveStats(stats){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+}
+let stats = loadStats();
+
+function recordGameEnd(){
+  stats.gamesPlayed += 1;
+  stats.bricksBroken += Game.sessionBricksBroken;
+  if(Game.score > stats.highScore) stats.highScore = Game.score;
+  if(Game.bestComboThisRun > stats.bestCombo) stats.bestCombo = Game.bestComboThisRun;
+  if(Game.score > stats.bestByDifficulty[Game.difficulty]) stats.bestByDifficulty[Game.difficulty] = Game.score;
+  saveStats(stats);
+}
+
+function refreshStatsPanel(){
+  document.getElementById("statHigh").textContent = stats.highScore;
+  document.getElementById("statGames").textContent = stats.gamesPlayed;
+  document.getElementById("statBricks").textContent = stats.bricksBroken;
+  document.getElementById("statCombo").textContent = stats.bestCombo;
+  document.getElementById("statEasy").textContent = stats.bestByDifficulty.easy;
+  document.getElementById("statMedium").textContent = stats.bestByDifficulty.medium;
+  document.getElementById("statHard").textContent = stats.bestByDifficulty.hard;
+}
+
+/* =====================================================================
+   SECTION: CANVAS SETUP / RESIZE
+   ===================================================================== */
+function resizeCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  const availW = window.innerWidth - 24;
+  const availH = window.innerHeight - 24;
+  const aspect = LOGICAL_W / LOGICAL_H;
+  let cssW = availW, cssH = availW / aspect;
+  if(cssH > availH){ cssH = availH; cssW = availH * aspect; }
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  canvas.width = Math.round(LOGICAL_W * dpr);
+  canvas.height = Math.round(LOGICAL_H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", resizeCanvas);
+
+/* =====================================================================
+   SECTION: INPUT HANDLING (mouse, keyboard, touch)
+   ===================================================================== */
+function clientToLogicalX(clientX){
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = LOGICAL_W / rect.width;
+  return (clientX - rect.left) * scaleX;
+}
+
+canvas.addEventListener("mousemove", (e) => {
+  pointerTargetX = clientToLogicalX(e.clientX);
+});
+canvas.addEventListener("touchstart", (e) => {
+  if(e.touches.length){ pointerTargetX = clientToLogicalX(e.touches[0].clientX); }
+}, { passive:true });
+canvas.addEventListener("touchmove", (e) => {
+  if(e.touches.length){ pointerTargetX = clientToLogicalX(e.touches[0].clientX); }
+  e.preventDefault();
+}, { passive:false });
+
+window.addEventListener("keydown", (e) => {
+  if(e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
+  if(e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
+  if(e.code === "Space" || e.code === "Escape"){
+    e.preventDefault();
+    togglePause();
+  }
+});
+window.addEventListener("keyup", (e) => {
+  if(e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
+  if(e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
+});
+
+function togglePause(){
+  if(Game.screen === "playing"){ setScreen("paused"); }
+  else if(Game.screen === "paused"){ setScreen("playing"); }
+}
+
+/* =====================================================================
+   SECTION: ENTITY FACTORIES
+   ===================================================================== */
+function makePaddle(){
+  const cfg = DIFFICULTY[Game.difficulty];
+  return {
+    w: cfg.paddleWidth,
+    h: PADDLE_HEIGHT,
+    x: LOGICAL_W/2 - cfg.paddleWidth/2,
+    y: LOGICAL_H - PADDLE_Y_OFFSET,
+    targetX: LOGICAL_W/2 - cfg.paddleWidth/2
+  };
+}
+
+function makeBall(){
+  const cfg = DIFFICULTY[Game.difficulty];
+  return {
+    x: LOGICAL_W/2,
+    y: LOGICAL_H - PADDLE_Y_OFFSET - PADDLE_HEIGHT/2 - BALL_RADIUS - 1,
+    vx: 0,
+    vy: 0,
+    speed: cfg.ballSpeed,
+    stuck: true // waits on paddle until launch
+  };
+}
+
+function launchBall(){
+  if(!ball.stuck) return;
+  ball.stuck = false;
+  const angle = (Math.random() * 0.5 - 0.25); // slight randomness
+  ball.vx = ball.speed * Math.sin(angle);
+  ball.vy = -ball.speed * Math.cos(angle);
+}
+
+function makeStars(){
+  const arr = [];
+  for(let i=0;i<110;i++){
+    const layer = Math.random();
+    arr.push({
+      x: Math.random()*LOGICAL_W,
+      y: Math.random()*LOGICAL_H,
+      r: 0.6 + layer*1.8,
+      speed: 6 + layer*26,
+      alpha: 0.25 + layer*0.55
+    });
+  }
+  return arr;
+}
+
+/* =====================================================================
+   SECTION: LEVEL GENERATION
+   ===================================================================== */
+function generateLevel(levelNum){
+  const cfg = DIFFICULTY[Game.difficulty];
+  const rows = Math.min(cfg.rows + Math.floor((levelNum-1)/2), cfg.maxRows);
+  const brickW = (LOGICAL_W - BRICK_SIDE_OFFSET*2 - BRICK_MARGIN*(BRICK_COLS-1)) / BRICK_COLS;
+  const brickH = 22;
+  const list = [];
+
+  // pattern selector cycles through a few layout shapes for variety
+  const pattern = (levelNum - 1) % 4;
+
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<BRICK_COLS;c++){
+      let include = true;
+      if(pattern === 1){
+        // pyramid-ish gaps at edges, growing with row
+        const edgeGap = Math.max(0, 3 - r);
+        if(c < edgeGap || c >= BRICK_COLS - edgeGap) include = false;
+      } else if(pattern === 2){
+        // checkerboard
+        include = (r + c) % 2 === 0;
+      } else if(pattern === 3){
+        // vertical stripes with a hole column
+        include = c % 4 !== 3 - (r % 4 === 0 ? 0 : 0) ? true : false;
+        include = !(c % 5 === 2 && r % 2 === 0);
+      }
+      if(!include) continue;
+
+      const hue = (PALETTE_STOPS[(levelNum-1) % PALETTE_STOPS.length] + r * 26) % 360;
+      // occasional tougher brick on higher levels
+      const hp = (levelNum > 3 && Math.random() < 0.08) ? 2 : 1;
+      list.push({
+        x: BRICK_SIDE_OFFSET + c*(brickW+BRICK_MARGIN),
+        y: BRICK_TOP_OFFSET + r*(brickH+BRICK_MARGIN),
+        w: brickW, h: brickH,
+        hue, hp, maxHp: hp,
+        alive: true,
+        scoreValue: (rows - r) * 10
+      });
+    }
+  }
+  return list;
+}
+
+/* =====================================================================
+   SECTION: GAME FLOW
+   ===================================================================== */
+function startGame(newDifficulty){
+  if(newDifficulty) Game.difficulty = newDifficulty;
+  Game.score = 0;
+  Game.lives = 3;
+  Game.level = 1;
+  Game.combo = 0;
+  Game.comboRunTimer = 0;
+  Game.sessionBricksBroken = 0;
+  Game.bestComboThisRun = 0;
+
+  paddle = makePaddle();
+  ball = makeBall();
+  bricks = generateLevel(Game.level);
+  particles = [];
+  popups = [];
+  trail = [];
+  stars = makeStars();
+  bgTargetHue = PALETTE_STOPS[0];
+  bgHue = bgTargetHue;
+  shakeMag = 0;
+
+  updateHUD();
+  setScreen("playing");
+}
+
+function restartGame(){
+  startGame(Game.difficulty);
+}
+
+function nextLevel(){
+  Game.level += 1;
+  bgTargetHue = PALETTE_STOPS[(Game.level-1) % PALETTE_STOPS.length];
+  bricks = generateLevel(Game.level);
+  ball = makeBall();
+  const cfg = DIFFICULTY[Game.difficulty];
+  ball.speed = Math.min(cfg.ballSpeed + (Game.level-1)*cfg.speedGrowth*2, cfg.maxSpeed);
+  paddle.w = cfg.paddleWidth; // keep consistent
+  Game.combo = 0;
+  updateHUD();
+}
+
+function loseLife(){
+  Game.lives -= 1;
+  Game.combo = 0;
+  triggerShake(14, 0.5);
+  updateHUD();
+  if(Game.lives <= 0){
+    endGame();
+  } else {
+    ball = makeBall();
+  }
+}
+
+function endGame(){
+  recordGameEnd();
+  refreshStatsPanel();
+  document.getElementById("overScore").textContent = Game.score;
+  const best = stats.highScore;
+  const isNew = Game.score >= best && Game.score > 0;
+  document.getElementById("overBest").innerHTML = isNew
+    ? `<span class="new-best">NEW HIGH SCORE!</span>`
+    : `Best: ${best}`;
+  setScreen("gameover");
+}
+
+/* =====================================================================
+   SECTION: SCREEN / UI MANAGEMENT
+   ===================================================================== */
+function setScreen(name){
+  Game.screen = name;
+  screenMenu.classList.toggle("active", name === "menu");
+  screenPause.classList.toggle("active", name === "paused");
+  screenOver.classList.toggle("active", name === "gameover");
+  hud.classList.toggle("show", name === "playing" || name === "paused");
+  pauseBtn.textContent = name === "paused" ? "▶" : "❙❙";
+  if(name === "menu") refreshStatsPanel();
+}
+
+function updateHUD(){
+  hudScore.textContent = Game.score;
+  hudLevel.textContent = Game.level;
+  diffBadge.textContent = DIFFICULTY[Game.difficulty].label;
+  livesRow.innerHTML = "";
+  const maxLives = 3;
+  for(let i=0;i<maxLives;i++){
+    const pip = document.createElement("div");
+    pip.className = "life-pip" + (i >= Game.lives ? " lost" : "");
+    livesRow.appendChild(pip);
+  }
+}
+
+/* =====================================================================
+   SECTION: PHYSICS / COLLISION
+   ===================================================================== */
+function updatePaddle(dt){
+  const cfg = DIFFICULTY[Game.difficulty];
+  if(pointerTargetX !== null){
+    paddle.targetX = pointerTargetX - paddle.w/2;
+  }
+  if(keys.left) paddle.targetX -= cfg.paddleMoveSpeed * dt;
+  if(keys.right) paddle.targetX += cfg.paddleMoveSpeed * dt;
+
+  paddle.targetX = Math.max(0, Math.min(LOGICAL_W - paddle.w, paddle.targetX));
+  // smooth follow for pointer input, snappy for keyboard
+  paddle.x += (paddle.targetX - paddle.x) * Math.min(1, dt*18);
+
+  if(ball.stuck){
+    ball.x = paddle.x + paddle.w/2;
+  }
+}
+
+function updateBall(dt){
+  if(ball.stuck){
+    if(pointerTargetX !== null || keys.left || keys.right) launchBall();
+    return;
+  }
+
+  trail.push({x:ball.x, y:ball.y});
+  if(trail.length > 14) trail.shift();
+
+  ball.x += ball.vx * dt * 60;
+  ball.y += ball.vy * dt * 60;
+
+  // wall collisions
+  if(ball.x - BALL_RADIUS < 0){ ball.x = BALL_RADIUS; ball.vx *= -1; }
+  if(ball.x + BALL_RADIUS > LOGICAL_W){ ball.x = LOGICAL_W - BALL_RADIUS; ball.vx *= -1; }
+  if(ball.y - BALL_RADIUS < 0){ ball.y = BALL_RADIUS; ball.vy *= -1; }
+
+  // paddle collision
+  if(ball.vy > 0 &&
+     ball.y + BALL_RADIUS >= paddle.y &&
+     ball.y + BALL_RADIUS <= paddle.y + paddle.h + 10 &&
+     ball.x >= paddle.x - BALL_RADIUS &&
+     ball.x <= paddle.x + paddle.w + BALL_RADIUS){
+    const hitPos = ((ball.x - paddle.x) / paddle.w) * 2 - 1; // -1 .. 1
+    const clamped = Math.max(-1, Math.min(1, hitPos));
+    const angle = clamped * MAX_BOUNCE_ANGLE;
+    ball.vx = ball.speed * Math.sin(angle);
+    ball.vy = -ball.speed * Math.cos(angle);
+    ball.y = paddle.y - BALL_RADIUS;
+    Game.combo = 0; // reset chain on paddle return
+    const cfg = DIFFICULTY[Game.difficulty];
+    ball.speed = Math.min(ball.speed + cfg.speedGrowth * 0.4, cfg.maxSpeed);
+  }
+
+  // lost the ball
+  if(ball.y - BALL_RADIUS > LOGICAL_H){
+    loseLife();
+    return;
+  }
+
+  // brick collisions
+  for(const brick of bricks){
+    if(!brick.alive) continue;
+    if(circleRectCollide(ball, brick)){
+      resolveBrickCollision(ball, brick);
+      hitBrick(brick);
+      break; // one brick per frame keeps physics stable
+    }
+  }
+
+  // level clear check
+  if(bricks.every(b => !b.alive)){
+    nextLevel();
+  }
+}
+
+function circleRectCollide(c, r){
+  const closestX = Math.max(r.x, Math.min(c.x, r.x + r.w));
+  const closestY = Math.max(r.y, Math.min(c.y, r.y + r.h));
+  const dx = c.x - closestX;
+  const dy = c.y - closestY;
+  return (dx*dx + dy*dy) < (BALL_RADIUS*BALL_RADIUS);
+}
+
+function resolveBrickCollision(c, r){
+  // determine shallowest overlap axis to decide bounce direction
+  const overlapLeft = (c.x + BALL_RADIUS) - r.x;
+  const overlapRight = (r.x + r.w) - (c.x - BALL_RADIUS);
+  const overlapTop = (c.y + BALL_RADIUS) - r.y;
+  const overlapBottom = (r.y + r.h) - (c.y - BALL_RADIUS);
+  const minX = Math.min(overlapLeft, overlapRight);
+  const minY = Math.min(overlapTop, overlapBottom);
+  if(minX < minY){
+    c.vx *= -1;
+  } else {
+    c.vy *= -1;
+  }
+}
+
+function hitBrick(brick){
+  brick.hp -= 1;
+  if(brick.hp > 0) return; // survives another hit, don't destroy yet
+
+  brick.alive = false;
+  Game.sessionBricksBroken += 1;
+  Game.combo += 1;
+  Game.comboRunTimer = 1.4;
+  if(Game.combo > Game.bestComboThisRun) Game.bestComboThisRun = Game.combo;
+
+  const comboMult = 1 + Math.floor(Game.combo/3) * 0.5;
+  const gained = Math.round(brick.scoreValue * comboMult);
+  Game.score += gained;
+  updateHUD();
+
+  const cfg = DIFFICULTY[Game.difficulty];
+  ball.speed = Math.min(ball.speed + cfg.speedGrowth, cfg.maxSpeed);
+
+  spawnBrickExplosion(brick.x + brick.w/2, brick.y + brick.h/2, brick.hue);
+  spawnPopup(brick.x + brick.w/2, brick.y + brick.h/2, "+" + gained);
+  triggerShake(4, 0.18);
+
+  if(Game.combo >= 3){
+    comboFlash = { text: "COMBO x" + Game.combo, alpha: 1, y: 0 };
+  }
+}
+
+/* =====================================================================
+   SECTION: PARTICLES & SCREEN SHAKE
+   ===================================================================== */
+function spawnBrickExplosion(x, y, hue){
+  const count = 10 + Math.floor(Math.random()*6);
+  for(let i=0;i<count;i++){
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.5 + Math.random()*4;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed - 1.5,
+      life: 1,
+      decay: 0.6 + Math.random()*0.6,
+      size: 2 + Math.random()*3,
+      hue
+    });
+  }
+}
+
+function spawnPopup(x, y, text){
+  popups.push({ x, y, text, alpha:1, vy:-1.1, life:1 });
+}
+
+function triggerShake(mag, time){
+  shakeMag = Math.max(shakeMag, mag);
+  shakeTime = Math.max(shakeTime, time);
+}
+
+function updateParticles(dt){
+  for(let i = particles.length - 1; i >= 0; i--){
+    const p = particles[i];
+    p.x += p.vx * dt * 60;
+    p.y += p.vy * dt * 60;
+    p.vy += 0.14 * dt * 60; // gravity
+    p.life -= p.decay * dt;
+    if(p.life <= 0) particles.splice(i,1);
+  }
+  for(let i = popups.length - 1; i >= 0; i--){
+    const p = popups[i];
+    p.y += p.vy * dt * 60;
+    p.life -= dt * 0.9;
+    p.alpha = Math.max(0, p.life);
+    if(p.life <= 0) popups.splice(i,1);
+  }
+  if(shakeTime > 0){
+    shakeTime -= dt;
+    if(shakeTime <= 0) shakeMag = 0;
+  }
+  if(comboFlash){
+    comboFlash.alpha -= dt * 0.6;
+    comboFlash.y -= dt * 20;
+    if(comboFlash.alpha <= 0) comboFlash = null;
+  }
+  if(Game.comboRunTimer > 0){
+    Game.comboRunTimer -= dt;
+  }
+}
+
+/* =====================================================================
+   SECTION: BACKGROUND (hue drift + starfield)
+   ===================================================================== */
+function updateBackground(dt){
+  // shortest-path hue lerp toward target
+  let diff = bgTargetHue - bgHue;
+  while(diff > 180) diff -= 360;
+  while(diff < -180) diff += 360;
+  bgHue = (bgHue + diff * Math.min(1, dt*0.8) + 360) % 360;
+  bgPulse += dt;
+
+  for(const s of stars){
+    s.y += s.speed * dt;
+    if(s.y > LOGICAL_H){ s.y = -4; s.x = Math.random()*LOGICAL_W; }
+  }
+}
+
+function drawBackground(){
+  const grad = ctx.createLinearGradient(0,0,0,LOGICAL_H);
+  grad.addColorStop(0, `hsl(${bgHue}, 55%, 8%)`);
+  grad.addColorStop(0.5, `hsl(${(bgHue+30)%360}, 50%, 5%)`);
+  grad.addColorStop(1, `hsl(${(bgHue+60)%360}, 45%, 4%)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
+
+  // faint grid for depth
+  ctx.save();
+  ctx.strokeStyle = `hsla(${bgHue}, 70%, 60%, 0.05)`;
+  ctx.lineWidth = 1;
+  const gridSize = 40;
+  for(let x=0;x<LOGICAL_W;x+=gridSize){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,LOGICAL_H); ctx.stroke();
+  }
+  for(let y=0;y<LOGICAL_H;y+=gridSize){
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(LOGICAL_W,y); ctx.stroke();
+  }
+  ctx.restore();
+
+  // starfield / ambient particles
+  ctx.save();
+  for(const s of stars){
+    ctx.globalAlpha = s.alpha;
+    ctx.fillStyle = `hsl(${(bgHue+180)%360}, 90%, 85%)`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/* =====================================================================
+   SECTION: RENDERING
+   ===================================================================== */
+function drawPaddle(){
+  ctx.save();
+  const grad = ctx.createLinearGradient(paddle.x, 0, paddle.x+paddle.w, 0);
+  grad.addColorStop(0, "#3ff0ff");
+  grad.addColorStop(1, "#ff3fd8");
+  ctx.shadowColor = "#7be8ff";
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = grad;
+  roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 8);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBall(){
+  // comet trail
+  for(let i=0;i<trail.length;i++){
+    const t = trail[i];
+    const a = (i / trail.length) * 0.5;
+    const r = BALL_RADIUS * (i / trail.length);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = "#bffcff";
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, Math.max(1,r), 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.shadowColor = "#ffffff";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBricks(){
+  for(const b of bricks){
+    if(!b.alive) continue;
+    ctx.save();
+    const lightness = b.maxHp > 1 && b.hp > 1 ? 70 : 55;
+    ctx.shadowColor = `hsl(${b.hue}, 100%, 60%)`;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = `hsl(${b.hue}, 90%, ${lightness}%)`;
+    roundRect(b.x, b.y, b.w, b.h, 4);
+    ctx.fill();
+    ctx.strokeStyle = `hsla(${b.hue}, 100%, 85%, 0.6)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawParticles(){
+  for(const p of particles){
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = `hsl(${p.hue}, 100%, 65%)`;
+    ctx.shadowColor = `hsl(${p.hue}, 100%, 60%)`;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawPopups(){
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.font = "bold 15px 'Segoe UI', sans-serif";
+  for(const p of popups){
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = "#ffe98a";
+    ctx.shadowColor = "#ffcf3f";
+    ctx.shadowBlur = 10;
+    ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.restore();
+}
+
+function drawComboFlash(){
+  if(!comboFlash) return;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, comboFlash.alpha);
+  ctx.textAlign = "center";
+  ctx.font = "bold 34px 'Segoe UI', sans-serif";
+  ctx.fillStyle = "#ff3fd8";
+  ctx.shadowColor = "#ff3fd8";
+  ctx.shadowBlur = 24;
+  ctx.fillText(comboFlash.text, LOGICAL_W/2, LOGICAL_H*0.32 + comboFlash.y);
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, radius){
+  ctx.beginPath();
+  ctx.moveTo(x+radius, y);
+  ctx.arcTo(x+w, y, x+w, y+h, radius);
+  ctx.arcTo(x+w, y+h, x, y+h, radius);
+  ctx.arcTo(x, y+h, x, y, radius);
+  ctx.arcTo(x, y, x+w, y, radius);
+  ctx.closePath();
+}
+
+/* =====================================================================
+   SECTION: MAIN LOOP
+   ===================================================================== */
+function frame(ts){
+  requestAnimationFrame(frame);
+  if(!Game.lastTime) Game.lastTime = ts;
+  let dt = (ts - Game.lastTime) / 1000;
+  Game.lastTime = ts;
+  dt = Math.min(dt, 0.05); // guard against tab-switch spikes
+
+  updateBackground(dt);
+
+  if(Game.screen === "playing"){
+    updatePaddle(dt);
+    updateBall(dt);
+    updateParticles(dt);
+  } else {
+    updateParticles(dt);
+  }
+
+  render();
+}
+
+function render(){
+  ctx.save();
+  ctx.clearRect(0,0,LOGICAL_W,LOGICAL_H);
+
+  let shakeX = 0, shakeY = 0;
+  if(shakeMag > 0){
+    shakeX = (Math.random()*2-1) * shakeMag;
+    shakeY = (Math.random()*2-1) * shakeMag;
+  }
+  ctx.translate(shakeX, shakeY);
+
+  drawBackground();
+
+  if(Game.screen === "playing" || Game.screen === "paused"){
+    drawBricks();
+    drawParticles();
+    drawPopups();
+    drawBall();
+    drawPaddle();
+    drawComboFlash();
+  } else {
+    drawParticles();
+  }
+
+  ctx.restore();
+}
+
+/* =====================================================================
+   SECTION: UI WIRING
+   ===================================================================== */
+document.querySelectorAll(".diff-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".diff-btn").forEach(b => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    Game.difficulty = btn.dataset.diff;
+  });
+});
+
+document.getElementById("btnStart").addEventListener("click", () => {
+  pointerTargetX = null;
+  startGame(Game.difficulty);
+});
+
+document.getElementById("btnShowStats").addEventListener("click", () => {
+  statsPanel.classList.toggle("show");
+  refreshStatsPanel();
+});
+
+pauseBtn.addEventListener("click", togglePause);
+document.getElementById("btnResume").addEventListener("click", () => setScreen("playing"));
+document.getElementById("btnRestart").addEventListener("click", () => restartGame());
+document.getElementById("btnPauseMenu").addEventListener("click", () => setScreen("menu"));
+
+document.getElementById("btnPlayAgain").addEventListener("click", () => restartGame());
+document.getElementById("btnOverMenu").addEventListener("click", () => setScreen("menu"));
+
+/* =====================================================================
+   SECTION: INIT
+   ===================================================================== */
+resizeCanvas();
+stars = makeStars();
+refreshStatsPanel();
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>
