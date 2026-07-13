@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05030a">
 <title>Neon Brick Bash</title>
 <style>
   :root{
@@ -17,9 +21,15 @@
   }
   *{box-sizing:border-box;}
   html,body{
-    margin:0;padding:0;width:100%;height:100%;
+    margin:0;padding:0;
+    width:100%;
+    height:100%;
+    height:calc(var(--app-height, 100%));
     background:var(--bg-0);
     overflow:hidden;
+    overscroll-behavior:none;
+    position:fixed;
+    inset:0;
     font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Trebuchet MS',sans-serif;
     color:#fff;
     -webkit-user-select:none;user-select:none;
@@ -27,8 +37,12 @@
   }
   #stage{
     position:fixed;inset:0;
+    height:100%;
+    height:calc(var(--app-height, 100%));
     display:flex;align-items:center;justify-content:center;
     background:radial-gradient(ellipse at center,#0d0620 0%,#040209 75%);
+    overscroll-behavior:none;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   #gameCanvas{
     display:block;
@@ -112,6 +126,8 @@
     max-width:92%;
     max-height:92%;
     overflow-y:auto;
+    overscroll-behavior:contain;
+    touch-action:pan-y;
     text-align:center;
     backdrop-filter:blur(10px);
     box-shadow:0 0 40px rgba(120,60,255,0.25), inset 0 0 40px rgba(120,60,255,0.05);
@@ -260,72 +276,75 @@
         <div style="margin-top:10px;"><button id="pauseBtn" title="Pause (Space)">&#10074;&#10074;</button></div>
       </div>
     </div>
-
-    <!-- ===================== MAIN MENU ===================== -->
-    <div class="screen active" id="screenMenu">
-      <div class="panel" style="width:460px;">
-        <div class="title">NEON BRICK BASH</div>
-        <div class="subtitle">arcade breakout &middot; reloaded</div>
-
-        <div class="section-label">Difficulty</div>
-        <div class="diff-row" id="diffRow">
-          <div class="diff-btn" data-diff="easy">Easy</div>
-          <div class="diff-btn selected" data-diff="medium">Medium</div>
-          <div class="diff-btn" data-diff="hard">Hard</div>
-        </div>
-
-        <div>
-          <button class="btn-primary" id="btnStart">Start Game</button>
-        </div>
-        <div>
-          <button class="btn-secondary" id="btnShowStats">High Scores</button>
-        </div>
-
-        <div id="statsPanel">
-          <div class="section-label">Statistics</div>
-          <div class="stats-grid">
-            <div>High Score <span id="statHigh">0</span></div>
-            <div>Games Played <span id="statGames">0</span></div>
-            <div>Bricks Broken <span id="statBricks">0</span></div>
-            <div>Best Combo <span id="statCombo">0</span></div>
-          </div>
-          <div class="section-label" style="margin-top:16px;">Best Score by Difficulty</div>
-          <div class="stat-diff-row"><span>Easy</span><b id="statEasy">0</b></div>
-          <div class="stat-diff-row"><span>Medium</span><b id="statMedium">0</b></div>
-          <div class="stat-diff-row"><span>Hard</span><b id="statHard">0</b></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===================== PAUSE MENU ===================== -->
-    <div class="screen" id="screenPause">
-      <div class="panel" style="width:360px;">
-        <div class="title" style="font-size:30px;">PAUSED</div>
-        <div style="margin-top:10px;">
-          <div><button class="btn-primary" id="btnResume">Resume</button></div>
-          <div><button class="btn-secondary" id="btnRestart">Restart</button></div>
-          <div><button class="btn-secondary" id="btnPauseMenu">Back to Main Menu</button></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===================== GAME OVER ===================== -->
-    <div class="screen" id="screenOver">
-      <div class="panel" style="width:400px;">
-        <div class="title" style="font-size:30px;">GAME OVER</div>
-        <div class="final-score" id="overScore">0</div>
-        <div class="best-score" id="overBest">Best: 0</div>
-        <div>
-          <button class="btn-primary" id="btnPlayAgain">Play Again</button>
-        </div>
-        <div>
-          <button class="btn-secondary" id="btnOverMenu">Back to Main Menu</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="hint">mouse / arrow keys / touch &nbsp;&middot;&nbsp; space or esc to pause</div>
   </div>
+
+  <!-- Screens live outside canvasWrap so they always fill the real viewport
+       instead of being squeezed into the aspect-locked, letterboxed canvas box. -->
+
+  <!-- ===================== MAIN MENU ===================== -->
+  <div class="screen active" id="screenMenu">
+    <div class="panel" style="width:460px;">
+      <div class="title">NEON BRICK BASH</div>
+      <div class="subtitle">arcade breakout &middot; reloaded</div>
+
+      <div class="section-label">Difficulty</div>
+      <div class="diff-row" id="diffRow">
+        <div class="diff-btn" data-diff="easy">Easy</div>
+        <div class="diff-btn selected" data-diff="medium">Medium</div>
+        <div class="diff-btn" data-diff="hard">Hard</div>
+      </div>
+
+      <div>
+        <button class="btn-primary" id="btnStart">Start Game</button>
+      </div>
+      <div>
+        <button class="btn-secondary" id="btnShowStats">High Scores</button>
+      </div>
+
+      <div id="statsPanel">
+        <div class="section-label">Statistics</div>
+        <div class="stats-grid">
+          <div>High Score <span id="statHigh">0</span></div>
+          <div>Games Played <span id="statGames">0</span></div>
+          <div>Bricks Broken <span id="statBricks">0</span></div>
+          <div>Best Combo <span id="statCombo">0</span></div>
+        </div>
+        <div class="section-label" style="margin-top:16px;">Best Score by Difficulty</div>
+        <div class="stat-diff-row"><span>Easy</span><b id="statEasy">0</b></div>
+        <div class="stat-diff-row"><span>Medium</span><b id="statMedium">0</b></div>
+        <div class="stat-diff-row"><span>Hard</span><b id="statHard">0</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== PAUSE MENU ===================== -->
+  <div class="screen" id="screenPause">
+    <div class="panel" style="width:360px;">
+      <div class="title" style="font-size:30px;">PAUSED</div>
+      <div style="margin-top:10px;">
+        <div><button class="btn-primary" id="btnResume">Resume</button></div>
+        <div><button class="btn-secondary" id="btnRestart">Restart</button></div>
+        <div><button class="btn-secondary" id="btnPauseMenu">Back to Main Menu</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== GAME OVER ===================== -->
+  <div class="screen" id="screenOver">
+    <div class="panel" style="width:400px;">
+      <div class="title" style="font-size:30px;">GAME OVER</div>
+      <div class="final-score" id="overScore">0</div>
+      <div class="best-score" id="overBest">Best: 0</div>
+      <div>
+        <button class="btn-primary" id="btnPlayAgain">Play Again</button>
+      </div>
+      <div>
+        <button class="btn-secondary" id="btnOverMenu">Back to Main Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hint">mouse / arrow keys / touch &nbsp;&middot;&nbsp; space or esc to pause</div>
 </div>
 
 <script>
@@ -446,10 +465,20 @@ function refreshStatsPanel(){
 /* =====================================================================
    SECTION: CANVAS SETUP / RESIZE
    ===================================================================== */
+// Uses visualViewport (falls back to innerHeight) so the layout tracks the
+// real visible area on mobile as the browser chrome/address bar shows or hides.
+function setAppHeight(){
+  const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  document.documentElement.style.setProperty("--app-height", h + "px");
+}
+
 function resizeCanvas(){
+  setAppHeight();
   const dpr = window.devicePixelRatio || 1;
-  const availW = window.innerWidth - 24;
-  const availH = window.innerHeight - 24;
+  const vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const availW = vw - 24;
+  const availH = vh - 24;
   const aspect = LOGICAL_W / LOGICAL_H;
   let cssW = availW, cssH = availW / aspect;
   if(cssH > availH){ cssH = availH; cssW = availH * aspect; }
@@ -460,6 +489,16 @@ function resizeCanvas(){
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 window.addEventListener("resize", resizeCanvas);
+window.addEventListener("orientationchange", resizeCanvas);
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", resizeCanvas);
+}
+
+// Prevent rubber-band/bounce scrolling of the page itself on mobile; the
+// stats panel is still allowed to scroll internally when its content overflows.
+document.addEventListener("touchmove", (e) => {
+  if(!e.target.closest(".panel")) e.preventDefault();
+}, { passive:false });
 
 /* =====================================================================
    SECTION: INPUT HANDLING (mouse, keyboard, touch)
@@ -717,6 +756,7 @@ function updateBall(dt){
   trail.push({x:ball.x, y:ball.y});
   if(trail.length > 14) trail.shift();
 
+  const prevX = ball.x, prevY = ball.y;
   ball.x += ball.vx * dt * 60;
   ball.y += ball.vy * dt * 60;
 
@@ -725,21 +765,28 @@ function updateBall(dt){
   if(ball.x + BALL_RADIUS > LOGICAL_W){ ball.x = LOGICAL_W - BALL_RADIUS; ball.vx *= -1; }
   if(ball.y - BALL_RADIUS < 0){ ball.y = BALL_RADIUS; ball.vy *= -1; }
 
-  // paddle collision
-  if(ball.vy > 0 &&
-     ball.y + BALL_RADIUS >= paddle.y &&
-     ball.y + BALL_RADIUS <= paddle.y + paddle.h + 10 &&
-     ball.x >= paddle.x - BALL_RADIUS &&
-     ball.x <= paddle.x + paddle.w + BALL_RADIUS){
-    const hitPos = ((ball.x - paddle.x) / paddle.w) * 2 - 1; // -1 .. 1
-    const clamped = Math.max(-1, Math.min(1, hitPos));
-    const angle = clamped * MAX_BOUNCE_ANGLE;
-    ball.vx = ball.speed * Math.sin(angle);
-    ball.vy = -ball.speed * Math.cos(angle);
-    ball.y = paddle.y - BALL_RADIUS;
-    Game.combo = 0; // reset chain on paddle return
-    const cfg = DIFFICULTY[Game.difficulty];
-    ball.speed = Math.min(ball.speed + cfg.speedGrowth * 0.4, cfg.maxSpeed);
+  // paddle collision - swept against the paddle's top edge so a fast ball
+  // can't tunnel through (or falsely "bounce" after it has already passed)
+  if(ball.vy > 0){
+    const paddleTop = paddle.y;
+    const prevBottom = prevY + BALL_RADIUS;
+    const currBottom = ball.y + BALL_RADIUS;
+    if(prevBottom <= paddleTop && currBottom >= paddleTop){
+      const t = (paddleTop - prevBottom) / (currBottom - prevBottom || 1);
+      const crossX = prevX + (ball.x - prevX) * t;
+      if(crossX >= paddle.x - BALL_RADIUS && crossX <= paddle.x + paddle.w + BALL_RADIUS){
+        const hitPos = ((crossX - paddle.x) / paddle.w) * 2 - 1; // -1 .. 1
+        const clamped = Math.max(-1, Math.min(1, hitPos));
+        const angle = clamped * MAX_BOUNCE_ANGLE;
+        ball.vx = ball.speed * Math.sin(angle);
+        ball.vy = -ball.speed * Math.cos(angle);
+        ball.x = crossX;
+        ball.y = paddleTop - BALL_RADIUS;
+        Game.combo = 0; // reset chain on paddle return
+        const cfg = DIFFICULTY[Game.difficulty];
+        ball.speed = Math.min(ball.speed + cfg.speedGrowth * 0.4, cfg.maxSpeed);
+      }
+    }
   }
 
   // lost the ball
@@ -1096,8 +1143,19 @@ document.querySelectorAll(".diff-btn").forEach(btn => {
 
 document.getElementById("btnStart").addEventListener("click", () => {
   pointerTargetX = null;
+  requestMobileFullscreen();
   startGame(Game.difficulty);
 });
+
+// Best-effort: hide mobile browser chrome via the Fullscreen API. Silently
+// ignored where unsupported (e.g. iPhone Safari) since the CSS viewport
+// sizing above already keeps the game filling the visible screen either way.
+function requestMobileFullscreen(){
+  const isTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+  if(isTouch && document.documentElement.requestFullscreen){
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
 
 document.getElementById("btnShowStats").addEventListener("click", () => {
   statsPanel.classList.toggle("show");
