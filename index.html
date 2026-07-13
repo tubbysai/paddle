@@ -59,11 +59,15 @@
     display:none;
     justify-content:space-between;
     align-items:flex-start;
-    padding:14px 18px;
+    gap:12px;
+    padding:14px 18px 22px;
     pointer-events:none;
     font-weight:600;
     letter-spacing:0.5px;
     z-index:5;
+    background:linear-gradient(to bottom, rgba(10,6,26,0.6), rgba(10,6,26,0));
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
   }
   #hud.show{display:flex;}
   .hud-group{display:flex;flex-direction:column;gap:4px;pointer-events:none;}
@@ -353,16 +357,32 @@
 /* =====================================================================
    SECTION: CONFIG & CONSTANTS
    ===================================================================== */
-const LOGICAL_W = 900;
-const LOGICAL_H = 650;
+// LOGICAL_W stays fixed; LOGICAL_H adapts to the device aspect ratio (see
+// refreshLogicalSize) so the play field fills tall mobile screens instead of
+// being letterboxed into a small centered box.
+let LOGICAL_W = 900;
+let LOGICAL_H = 650;
 const BRICK_COLS = 10;
 const BRICK_MARGIN = 6;
 const BRICK_TOP_OFFSET = 70;
 const BRICK_SIDE_OFFSET = 20;
-const PADDLE_Y_OFFSET = 36; // distance from bottom
 const PADDLE_HEIGHT = 16;
 const BALL_RADIUS = 8;
 const MAX_BOUNCE_ANGLE = Math.PI * 0.41; // ~74 degrees from vertical
+
+// Distance from the bottom edge to the paddle. Scales up on tall/mobile
+// screens so a thumb resting below the paddle to drag it doesn't cover it.
+function getPaddleYOffset(){
+  return Math.max(36, Math.min(150, LOGICAL_H * 0.075));
+}
+
+function refreshLogicalSize(){
+  const vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const aspect = Math.max(0.42, Math.min(1.55, vw / vh));
+  LOGICAL_W = 900;
+  LOGICAL_H = Math.round(LOGICAL_W / aspect);
+}
 
 const DIFFICULTY = {
   easy:   { label:"Easy",   ballSpeed:5.0, paddleWidth:130, rows:4, maxRows:6, speedGrowth:0.055, maxSpeed:11, paddleMoveSpeed:620 },
@@ -410,7 +430,7 @@ const Game = {
   lastTime: 0,
 };
 
-let paddle, ball, bricks = [], particles = [], popups = [], stars = [], trail = [];
+let paddle, ball, bricks = [], particles = [], popups = [], stars = [], nebulae = [], trail = [];
 let shakeMag = 0, shakeTime = 0;
 let bgHue = PALETTE_STOPS[0], bgTargetHue = PALETTE_STOPS[0];
 let bgPulse = 0;
@@ -489,10 +509,16 @@ function resizeCanvas(){
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 window.addEventListener("resize", resizeCanvas);
-window.addEventListener("orientationchange", resizeCanvas);
 if(window.visualViewport){
   window.visualViewport.addEventListener("resize", resizeCanvas);
 }
+// Orientation flips change the aspect ratio enough to warrant relaying out
+// the play field. A plain resize (e.g. the mobile address bar collapsing)
+// only rescales the existing layout so an in-progress game doesn't jump.
+window.addEventListener("orientationchange", () => {
+  refreshLogicalSize();
+  resizeCanvas();
+});
 
 // Prevent rubber-band/bounce scrolling of the page itself on mobile; the
 // stats panel is still allowed to scroll internally when its content overflows.
@@ -547,7 +573,7 @@ function makePaddle(){
     w: cfg.paddleWidth,
     h: PADDLE_HEIGHT,
     x: LOGICAL_W/2 - cfg.paddleWidth/2,
-    y: LOGICAL_H - PADDLE_Y_OFFSET,
+    y: LOGICAL_H - getPaddleYOffset(),
     targetX: LOGICAL_W/2 - cfg.paddleWidth/2
   };
 }
@@ -556,7 +582,7 @@ function makeBall(){
   const cfg = DIFFICULTY[Game.difficulty];
   return {
     x: LOGICAL_W/2,
-    y: LOGICAL_H - PADDLE_Y_OFFSET - PADDLE_HEIGHT/2 - BALL_RADIUS - 1,
+    y: LOGICAL_H - getPaddleYOffset() - PADDLE_HEIGHT/2 - BALL_RADIUS - 1,
     vx: 0,
     vy: 0,
     speed: cfg.ballSpeed,
@@ -574,7 +600,8 @@ function launchBall(){
 
 function makeStars(){
   const arr = [];
-  for(let i=0;i<110;i++){
+  const density = (LOGICAL_W * LOGICAL_H) / 6500;
+  for(let i=0;i<density;i++){
     const layer = Math.random();
     arr.push({
       x: Math.random()*LOGICAL_W,
@@ -585,6 +612,33 @@ function makeStars(){
     });
   }
   return arr;
+}
+
+function makeNebulae(){
+  const arr = [];
+  for(let i=0;i<3;i++){
+    arr.push({
+      x: Math.random()*LOGICAL_W,
+      y: Math.random()*LOGICAL_H,
+      r: LOGICAL_W * (0.28 + Math.random()*0.16),
+      driftX: (Math.random()*2-1) * 5,
+      driftY: (Math.random()*2-1) * 5,
+      hueOffset: i * 90 + Math.random()*40,
+      alpha: 0.10 + Math.random()*0.06
+    });
+  }
+  return arr;
+}
+
+function updateNebulae(dt){
+  for(const n of nebulae){
+    n.x += n.driftX * dt;
+    n.y += n.driftY * dt;
+    if(n.x < -n.r) n.x = LOGICAL_W + n.r;
+    if(n.x > LOGICAL_W + n.r) n.x = -n.r;
+    if(n.y < -n.r) n.y = LOGICAL_H + n.r;
+    if(n.y > LOGICAL_H + n.r) n.y = -n.r;
+  }
 }
 
 /* =====================================================================
@@ -646,6 +700,11 @@ function startGame(newDifficulty){
   Game.sessionBricksBroken = 0;
   Game.bestComboThisRun = 0;
 
+  // Pick up the current viewport aspect ratio fresh for this session so the
+  // play field fills the screen even if the device rotated on the menu.
+  refreshLogicalSize();
+  resizeCanvas();
+
   paddle = makePaddle();
   ball = makeBall();
   bricks = generateLevel(Game.level);
@@ -653,6 +712,7 @@ function startGame(newDifficulty){
   popups = [];
   trail = [];
   stars = makeStars();
+  nebulae = makeNebulae();
   bgTargetHue = PALETTE_STOPS[0];
   bgHue = bgTargetHue;
   shakeMag = 0;
@@ -935,6 +995,28 @@ function updateBackground(dt){
     s.y += s.speed * dt;
     if(s.y > LOGICAL_H){ s.y = -4; s.x = Math.random()*LOGICAL_W; }
   }
+  updateNebulae(dt);
+}
+
+// The dot-grid is cached as a tiny repeating pattern (regenerated only when
+// the background hue shifts a meaningful amount) so a single fillRect can
+// paint it instead of hundreds of individual arc() calls every frame.
+let dotGridPattern = null;
+let dotGridHueBucket = null;
+function getDotGridPattern(){
+  const hueBucket = Math.round(bgHue / 12);
+  if(dotGridPattern && dotGridHueBucket === hueBucket) return dotGridPattern;
+  const size = 46;
+  const off = document.createElement("canvas");
+  off.width = size; off.height = size;
+  const octx = off.getContext("2d");
+  octx.fillStyle = `hsla(${bgHue}, 70%, 72%, 0.12)`;
+  octx.beginPath();
+  octx.arc(size/2, size/2, 1.3, 0, Math.PI*2);
+  octx.fill();
+  dotGridPattern = ctx.createPattern(off, "repeat");
+  dotGridHueBucket = hueBucket;
+  return dotGridPattern;
 }
 
 function drawBackground(){
@@ -945,18 +1027,20 @@ function drawBackground(){
   ctx.fillStyle = grad;
   ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
 
-  // faint grid for depth
+  // soft drifting nebula blobs for depth
   ctx.save();
-  ctx.strokeStyle = `hsla(${bgHue}, 70%, 60%, 0.05)`;
-  ctx.lineWidth = 1;
-  const gridSize = 40;
-  for(let x=0;x<LOGICAL_W;x+=gridSize){
-    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,LOGICAL_H); ctx.stroke();
-  }
-  for(let y=0;y<LOGICAL_H;y+=gridSize){
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(LOGICAL_W,y); ctx.stroke();
+  for(const n of nebulae){
+    const ng = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+    ng.addColorStop(0, `hsla(${(bgHue+n.hueOffset)%360}, 85%, 58%, ${n.alpha})`);
+    ng.addColorStop(1, `hsla(${(bgHue+n.hueOffset)%360}, 85%, 58%, 0)`);
+    ctx.fillStyle = ng;
+    ctx.fillRect(n.x-n.r, n.y-n.r, n.r*2, n.r*2);
   }
   ctx.restore();
+
+  // soft dot grid for depth (reads more modern than crossed grid lines)
+  ctx.fillStyle = getDotGridPattern();
+  ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
 
   // starfield / ambient particles
   ctx.save();
@@ -969,33 +1053,75 @@ function drawBackground(){
   }
   ctx.restore();
   ctx.globalAlpha = 1;
+
+  // vignette for a cinematic, framed feel
+  ctx.save();
+  const vg = ctx.createRadialGradient(LOGICAL_W/2, LOGICAL_H/2, LOGICAL_H*0.4, LOGICAL_W/2, LOGICAL_H/2, LOGICAL_H*0.78);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.5)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
+  ctx.restore();
 }
 
 /* =====================================================================
    SECTION: RENDERING
    ===================================================================== */
+// A faint dashed track below the paddle hints that dragging works all the
+// way down there too, so a thumb never has to sit on top of the paddle.
+function drawTouchTrack(){
+  const trackY = LOGICAL_H - 16;
+  ctx.save();
+  ctx.strokeStyle = "rgba(200,180,255,0.22)";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.setLineDash([2, 10]);
+  ctx.beginPath();
+  ctx.moveTo(LOGICAL_W*0.22, trackY);
+  ctx.lineTo(LOGICAL_W*0.78, trackY);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawPaddle(){
+  const pulse = 0.85 + Math.sin(bgPulse*3) * 0.15;
+  const r = paddle.h/2;
+
   ctx.save();
   const grad = ctx.createLinearGradient(paddle.x, 0, paddle.x+paddle.w, 0);
   grad.addColorStop(0, "#3ff0ff");
+  grad.addColorStop(0.5, "#a06bff");
   grad.addColorStop(1, "#ff3fd8");
-  ctx.shadowColor = "#7be8ff";
-  ctx.shadowBlur = 22;
+  ctx.shadowColor = "#8fe8ff";
+  ctx.shadowBlur = 22 * pulse;
   ctx.fillStyle = grad;
-  roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 8);
+  roundRect(paddle.x, paddle.y, paddle.w, paddle.h, r);
+  ctx.fill();
+
+  // glossy top highlight for a modern, glassy capsule look
+  ctx.shadowBlur = 0;
+  const hl = ctx.createLinearGradient(0, paddle.y, 0, paddle.y + paddle.h*0.6);
+  hl.addColorStop(0, "rgba(255,255,255,0.6)");
+  hl.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = hl;
+  roundRect(paddle.x+3, paddle.y+2, paddle.w-6, paddle.h*0.5, paddle.h*0.3);
   ctx.fill();
   ctx.restore();
 }
 
 function drawBall(){
-  // comet trail
+  // comet trail with a soft radial glow instead of flat dots
   for(let i=0;i<trail.length;i++){
     const t = trail[i];
-    const a = (i / trail.length) * 0.5;
-    const r = BALL_RADIUS * (i / trail.length);
+    const frac = i / trail.length;
+    const a = frac * 0.45;
+    const r = BALL_RADIUS * (0.3 + frac*0.7);
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.fillStyle = "#bffcff";
+    const tg = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, r);
+    tg.addColorStop(0, "#eafdff");
+    tg.addColorStop(1, "rgba(63,240,255,0)");
+    ctx.fillStyle = tg;
     ctx.beginPath();
     ctx.arc(t.x, t.y, Math.max(1,r), 0, Math.PI*2);
     ctx.fill();
@@ -1003,9 +1129,13 @@ function drawBall(){
   }
 
   ctx.save();
-  ctx.shadowColor = "#ffffff";
-  ctx.shadowBlur = 18;
-  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "#bdf3ff";
+  ctx.shadowBlur = 20;
+  const bg = ctx.createRadialGradient(ball.x-2.5, ball.y-2.5, 0.5, ball.x, ball.y, BALL_RADIUS);
+  bg.addColorStop(0, "#ffffff");
+  bg.addColorStop(0.55, "#e2fbff");
+  bg.addColorStop(1, "#7fe0ff");
+  ctx.fillStyle = bg;
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI*2);
   ctx.fill();
@@ -1016,14 +1146,31 @@ function drawBricks(){
   for(const b of bricks){
     if(!b.alive) continue;
     ctx.save();
-    const lightness = b.maxHp > 1 && b.hp > 1 ? 70 : 55;
+    const damaged = b.maxHp > 1 && b.hp > 1;
+    const baseL = damaged ? 68 : 54;
+
+    // glossy vertical gradient instead of a flat fill
+    const grad = ctx.createLinearGradient(0, b.y, 0, b.y+b.h);
+    grad.addColorStop(0, `hsl(${b.hue}, 95%, ${baseL+14}%)`);
+    grad.addColorStop(1, `hsl(${b.hue}, 88%, ${baseL-10}%)`);
     ctx.shadowColor = `hsl(${b.hue}, 100%, 60%)`;
-    ctx.shadowBlur = 14;
-    ctx.fillStyle = `hsl(${b.hue}, 90%, ${lightness}%)`;
-    roundRect(b.x, b.y, b.w, b.h, 4);
+    ctx.shadowBlur = 13;
+    ctx.fillStyle = grad;
+    roundRect(b.x, b.y, b.w, b.h, 6);
     ctx.fill();
-    ctx.strokeStyle = `hsla(${b.hue}, 100%, 85%, 0.6)`;
+
+    // top sheen for a glassy, modern brick look
+    ctx.shadowBlur = 0;
+    const hl = ctx.createLinearGradient(0, b.y, 0, b.y + b.h*0.45);
+    hl.addColorStop(0, "rgba(255,255,255,0.32)");
+    hl.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = hl;
+    roundRect(b.x+2, b.y+1.5, b.w-4, b.h*0.42, 4);
+    ctx.fill();
+
+    ctx.strokeStyle = `hsla(${b.hue}, 100%, 88%, 0.5)`;
     ctx.lineWidth = 1;
+    roundRect(b.x, b.y, b.w, b.h, 6);
     ctx.stroke();
     ctx.restore();
   }
@@ -1120,6 +1267,7 @@ function render(){
     drawBricks();
     drawParticles();
     drawPopups();
+    drawTouchTrack();
     drawBall();
     drawPaddle();
     drawComboFlash();
@@ -1173,8 +1321,10 @@ document.getElementById("btnOverMenu").addEventListener("click", () => setScreen
 /* =====================================================================
    SECTION: INIT
    ===================================================================== */
+refreshLogicalSize();
 resizeCanvas();
 stars = makeStars();
+nebulae = makeNebulae();
 refreshStatsPanel();
 requestAnimationFrame(frame);
 
